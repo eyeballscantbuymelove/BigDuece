@@ -1,1 +1,0 @@
-An awful implementation of a big two playing robot

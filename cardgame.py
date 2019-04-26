@@ -1,11 +1,10 @@
 #!/usr/bin/python3
 
-
 from enum import IntEnum
 from random import shuffle
 from collections import Counter
 from itertools import chain, combinations, filterfalse
-
+from heapq import nlargest
 # create a dictionary to map a cards number to its rank
 valid_ranks = list(range(0,13))
 valid_cards = ['3','4', '5', '6', '7','8', '9','T', 'J', 'Q', 'K','A','2']
@@ -76,7 +75,7 @@ class Card:
 
 class Deck:
     '''
-    decks consist of 52 unique cards, decks can shuffle themselves and deal 
+    decks consist of 52 unique cards, decks can shuffle themselves and deal
     out cards to players
     '''
     def __init__(self):
@@ -90,7 +89,11 @@ class Deck:
         for card in d.cards:
             s+= str(card) + ' '
         return s
-
+    def reset(self):
+        self.cards = []
+        for suit in Suits:
+            for rank in valid_ranks:
+                self.cards.append(Card(rank,suit))
     def shuffle(self):
         shuffle(self.cards)
 
@@ -110,27 +113,40 @@ def powerset(iterable):
     s = list(iterable)
     return list(chain.from_iterable(combinations(s, r) for r in range(len(s)+1)))
 
-def checkPokerHand(cards):
-    '''return if the cards form a poker hand as a true/false'''
-    if (len(cards)==0): #empty set = playing nothing so obviously invalid
-        return False
-    reps = dict(Counter(cards))
-    if(len(cards) == max(reps.values()) and len(cards)<5): #checks for up to 4 of a kind
-        return True
-    else:
-        return False
-    # TODO: implement straight and full house check (sequential increase and has repetition of 3 and 2)    
+def checkPokerHand2(cards):
+    '''return value of poker hand as an int
+        0=invalid, 1=high card, 2=pair, 3=set, 4=straight, 5=fullhouse, 6 = fullhouse'''
+    if(len(cards)==0):
+        return 0 #emtpy set = playing nothing = obviously invalid
+    if(len(cards)==1):
+        return 1 #set of size = high card, always a valid sets
+    reps=sorted(list(dict(Counter(cards)).values()),reverse=True)
+    if(len(cards) < 5 and len(cards)==reps[0]):
+        if(len(cards)==4):
+            return 6      #quads are highest
+        return len(cards) #check for pairs and sets
+    if(len(cards)==5 and reps[0]==3 and reps[1]==2):
+        return len(cards) #check for full house
+    if(len(cards)==5):
+        straight_count = 1
+        for (indx, card) in enumerate(cards):
+            if(card+1==cards[indx+1]):
+                straight_count +=1
+                if(straight_count==5):
+                    return 4 #check for straight
+            else:
+                return 0
 
 if __name__ == '__main__':
     d = Deck()
     d.shuffle()
     h = d.dealHand(13)
     h.sort(reverse=False)
-    print(h)
     sets = powerset(h)
     good = []
     for play in sets:
-        if(checkPokerHand(play)):
+        if(checkPokerHand2(play)):
             good.append(play)
+    d.reset()
     for play in good:
         print(play)

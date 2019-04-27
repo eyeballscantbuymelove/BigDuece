@@ -4,7 +4,8 @@ from enum import IntEnum
 from random import shuffle
 from collections import Counter
 from itertools import chain, combinations, filterfalse
-from heapq import nlargest
+import time
+
 # create a dictionary to map a cards number to its rank
 valid_ranks = list(range(0,13))
 valid_cards = ['3','4', '5', '6', '7','8', '9','T', 'J', 'Q', 'K','A','2']
@@ -72,7 +73,6 @@ class Card:
         # TODO: look up less stupid way of making the output prettier
         return "{}{}".format(value_rules[self.rank],self.suit.name)
 
-
 class Deck:
     '''
     decks consist of 52 unique cards, decks can shuffle themselves and deal
@@ -105,17 +105,48 @@ class Deck:
         for x in range(amount):
             hand.append(self.dealCard())
         return hand
+    def reclaimCard(self,card):
+        assert isinstance(card,Card)
+        self.cards.append(card)
+    def reclaimCards(self,cards):
+        for card in cards:
+            assert isinstance(card,Card)
+            self.cards.append(card)
+
+class Player:
+    def __init__(self,hand):
+        assert(isinstance(hand,list))
+        self.hand=hand
+    def __str__(self):
+        return repr(self)
+    def __repr__(self):
+        return str(self.hand)
+    def takeCards(self,cards,sort=False):
+        '''takes a list of cards, adds to them to the hand, sorts the hand (default unsorted), returns the hand'''
+        assert isinstance(cards,list)
+        for card in cards:
+            self.hand.append(card)
+        if(sort):
+            self.hand.sort()
+        return self.hand
+    def playCards(self,indexes):
+        '''takes a list indexes, removes cards at those hand indexes, and returns them in a list'''
+        assert isinstance(indexes,list)
+        play = []
+        for index in indexes:
+            play.append(self.hand.pop(index))
+        return play
 
 # XXX: from https://docs.python.org/3/library/itertools.html
-def powerset(iterable):
-    '''generates a powerset of a given iterable object'''
+def powerset(iterable, n=6):
+    '''generates members of the powerset of a given iterable object up to cardinality n, default size is size of poker hand'''
     #low priority TODO: look for cleaner way to do this
     s = list(iterable)
-    return list(chain.from_iterable(combinations(s, r) for r in range(len(s)+1)))
+    return list(chain.from_iterable(combinations(s, r) for r in range(6)))
 
 def checkPokerHand2(cards):
     '''return value of poker hand as an int
-        0=invalid, 1=high card, 2=pair, 3=set, 4=straight, 5=fullhouse, 6 = fullhouse'''
+        0=invalid, 1=high card, 2=pair, 3=set, 4=straight, 5=fullhouse, 6 = quads'''
     if(len(cards)==0):
         return 0 #emtpy set = playing nothing = obviously invalid
     if(len(cards)==1):
@@ -137,12 +168,65 @@ def checkPokerHand2(cards):
             else:
                 return 0
 
+class State:
+    ''' the state of a generic card game can be defined by
+        the players: the list of players who can alter the state
+        the board: the list of cards currently viewable by players
+        the stack: the list cards which have been played, but are not viewable by players
+        the turn: an integer number representing which player may act on the State
+        the round: the number of times a full set of turns has been completed'''
+    def __init__(self,players,board=[]):
+        self.players = players
+        self.board = board
+        self.stack = []
+        self.turn = 0
+        self.round = 0
+
+class Game:
+    ''' a generic card game consists of decks of cards and players, who act on one or more states'''
+    def __init__(self,decks,players,state):
+        for deck in decks:
+            assert isinstance(Deck)
+        for player in players:
+            assert isinstance(Player)
+        assert isinstance(state,State)
+        self.decks=decks
+        self.players=players
+        self.state=state
+
+class bigTwoState(State):
+    ''' additionaly, the big two state needs to keep track of the following
+        the trick: the currently allowed set of plays in the round, represented as an integer
+            0=wild, 1=high card, 2=pair, 3=set, 4=straight, 5=fullhouse, 6 = quads
+        players still able to compete for the trick:
+        the win state: a boolean--does the current turn's player have no cards in their hand at the end of the turn, signifying a win'''
+    def __init__(self):
+        State.__init__(self,players,board=[])
+        self.trick = 0
+        self.competitors = self.players
+        self.winstate = False
+
+    def checkWinstate(self,player):
+        return player.hand==[]
+    def checkValidPlay(self,cards):
+        ''' check if a set of cards matches is a valid poker hand and matches the current trick
+            checkPokerHand supports checking for only a single category of tricks
+            low priority, adjust logic for more efficient checking of sets rather than checking all hands'''
+        play_type = checkPokerHand2(cards)
+        if (play_type == self.trick) or (play_type == 6):
+            '''quats are always bombs'''
+            return True
+        else:
+            return False
+    #todo, advance game state
+
 if __name__ == '__main__':
+    start = time. time()
     d = Deck()
     d.shuffle()
-    h = d.dealHand(13)
-    h.sort(reverse=False)
-    sets = powerset(h)
+    p1 = Player(d.dealHand(13))
+    print(p1)
+    sets = powerset(p1.hand)
     good = []
     for play in sets:
         if(checkPokerHand2(play)):
@@ -150,3 +234,5 @@ if __name__ == '__main__':
     d.reset()
     for play in good:
         print(play)
+    end = time. time()
+    print(end - start)
